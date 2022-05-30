@@ -1,11 +1,16 @@
 package net.ivanvega.fragmentosdinamicos;
 
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -18,18 +23,15 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import java.io.IOException;
-
+import net.ivanvega.fragmentosdinamicos.services.MiServicio;
 /**
  * A simple {@link Fragment} subclass.
  * Use the {@link DetalleFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
 public class DetalleFragment extends Fragment
-    implements MediaPlayer.OnPreparedListener,
-        MediaController.MediaPlayerControl,
-        View.OnTouchListener
-
-{
+        implements View.OnTouchListener,MediaPlayer.OnPreparedListener,
+        MediaController.MediaPlayerControl {
 
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
@@ -128,17 +130,28 @@ public class DetalleFragment extends Fragment
         lblAutor.setText(libro.getAutor());
         imvPortada.setImageResource(libro.getRecursoImagen());
 
-        if( mediaPlayer!= null){
-            mediaPlayer.release();
+        Uri audio = Uri.parse(libro.getUrl()); // Uri que maneja la localización de archivos.
+        String enviarUri = String.valueOf(audio);
+
+        SharedPreferences preferencias = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        if (preferencias.getBoolean("pref_autoreproducir", true)) {
+            Intent serviceIntent = new Intent(getActivity().getApplicationContext(), MiServicio.class);
+            serviceIntent.putExtra("inputExtra", enviarUri);
+            serviceIntent.putExtra("bookName", libro.getTitulo());
+            ContextCompat.startForegroundService(getActivity(), serviceIntent);
         }
 
-            mediaPlayer = new MediaPlayer();
+        if( servicioLibros.mediaPlayer!= null){
+            servicioLibros.mediaPlayer.release();
+        }
+
+            servicioLibros.mediaPlayer = new MediaPlayer();
+            servicioLibros.mediaPlayer.setOnPreparedListener(this);
             mediaController = new MediaController(getActivity());
-            mediaPlayer.setOnPreparedListener(this);
             try {
-                mediaPlayer.setDataSource(getActivity(),
+                servicioLibros.mediaPlayer.setDataSource(getActivity(),
                         Uri.parse(libro.getUrl()));
-                mediaPlayer.prepareAsync();
+                servicioLibros.mediaPlayer.prepareAsync();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -152,47 +165,47 @@ public class DetalleFragment extends Fragment
         this.setInfoLibro(pos,getView()    );
     }
 
+    MiServicio servicioLibros = new MiServicio();
     @Override
     public void onPrepared(MediaPlayer mediaPlayer) {
-
+        Log.d("Audiolibros", "Entramos en onPrepared de MediaPlayer");
+        servicioLibros.mediaPlayer.start();
         mediaController.setMediaPlayer(this);
-        mediaController.setAnchorView(
-                getView().findViewById(R.id.fragment_detalle_layout_root));
+        mediaController.setAnchorView(getView());
         mediaController.setEnabled(true);
         mediaController.show();
-        mediaPlayer.start();
 
 
     }
 
     @Override
     public void start() {
-        mediaPlayer.start();
+        servicioLibros.mediaPlayer.start();
     }
 
     @Override
     public void pause() {
-        mediaPlayer.pause();
+        servicioLibros.mediaPlayer.pause();
     }
 
     @Override
     public int getDuration() {
-        return mediaPlayer.getDuration();
+        return servicioLibros.mediaPlayer.getDuration();
     }
 
     @Override
     public int getCurrentPosition() {
-        return mediaPlayer.getCurrentPosition();
+        return servicioLibros.mediaPlayer.getCurrentPosition();
     }
 
     @Override
     public void seekTo(int i) {
-        mediaPlayer.seekTo(i);
+        servicioLibros.mediaPlayer.seekTo(i);
     }
 
     @Override
     public boolean isPlaying() {
-        return mediaPlayer.isPlaying();
+        return servicioLibros.mediaPlayer.isPlaying();
     }
 
     @Override
@@ -217,7 +230,7 @@ public class DetalleFragment extends Fragment
 
     @Override
     public int getAudioSessionId() {
-        return 0;
+        return servicioLibros.mediaPlayer.getAudioSessionId();
     }
 
     @Override
@@ -226,10 +239,5 @@ public class DetalleFragment extends Fragment
         return false;
     }
 
-    @Override
-    public void onStop() {
-        mediaPlayer.stop();
-        mediaPlayer.release();
-        super.onStop();
-    }
+
 }
